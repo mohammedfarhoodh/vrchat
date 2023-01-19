@@ -1,0 +1,97 @@
+using UnityEngine;
+using UnityEditor;
+
+[ScriptImage("Assets/Scripts/MyScriptImage.png")]
+[ExecuteInEditMode]
+public class ToggleCreator : MonoBehaviour
+{
+    [SerializeField] public AnimationClip invalidClip;
+    [SerializeField] public AnimationClip onClip;
+    [SerializeField] public AnimationClip offClip;
+    public int toggleCount = 1;
+
+    [ContextMenu("Create Toggle")]
+    public void CreateToggle()
+    {
+        for (int i = 0; i < toggleCount; i++)
+        {
+            // Get the Animator component
+            Animator animator = GetComponent<Animator>();
+            if (animator == null)
+            {
+                Debug.LogError("No Animator component found on this object");
+                return;
+            }
+
+            // Check if the AnimationClips are assigned
+            if (invalidClip == null || onClip == null || offClip == null)
+            {
+                Debug.LogError("Invalid, On, or Off animation clip is not assigned");
+                return;
+            }
+
+            // prompt user for names
+            string toggleName = EditorUtility.PromptForString("Toggle Name", "MyToggle" + i);
+            string invalidStateName = EditorUtility.PromptForString("Invalid State Name", "Invalid" + i);
+            string onStateName = EditorUtility.PromptForString("On State Name", "On" + i);
+            string offStateName = EditorUtility.PromptForString("Off State Name", "Off" + i);
+            string transitionParam = EditorUtility.PromptForString("Transition Parameter", "transitionState" + i);
+
+            // Create the parameter in the Animator
+            animator.SetBool(toggleName, false);
+            animator.CreateAnimatorControllerParameter(transitionParam, AnimatorControllerParameterType.Bool);
+
+            // Create the states in the Animator
+            AnimatorController controller = animator.runtimeAnimatorController as AnimatorController;
+            AnimatorState invalidState = controller.AddMotion(invalidClip);
+            invalidState.name = invalidStateName;
+            AnimatorState onState = controller.AddMotion(onClip);
+            onState.name = onStateName;
+            AnimatorState offState = controller.AddMotion(offClip);
+            offState.name = offStateName;
+
+            // Create the transitions between the states
+            AnimatorStateTransition invalidToOff = invalidState.AddTransition(offState);
+            invalidToOff.AddCondition(AnimatorConditionMode.IfNot, 0, toggleName);
+            invalidToOff.AddCondition(AnimatorConditionMode.If, 0, transitionParam);
+
+            AnimatorStateTransition offToOn = offState.AddTransition(onState);
+            offToOn.AddCondition(AnimatorConditionMode.If, 0, toggleName);
+            offToOn.AddCondition(AnimatorConditionMode.If, 0, transitionParam);
+        }
+    }
+}
+
+[CustomEditor(typeof(ToggleCreator))]
+public class ToggleCreatorEditor : Editor
+{
+    public override void OnInspectorGUI()
+    {
+        DrawDefaultInspector();
+        ScriptImageAttribute imageAttr = (ScriptImageAttribute)attribute;
+        if (imageAttr != null)
+            GUILayout.Label(imageAttr.image);
+
+        ToggleCreator toggleCreator = (ToggleCreator)target;
+        if (GUILayout.Button("Create Toggles"))
+        {
+            toggleCreator.CreateToggle();
+        }
+    }
+}
+
+public class ScriptImageAttribute : PropertyAttribute
+{
+    public Texture2D image;
+    public ScriptImageAttribute(string path)
+    {
+        image = (Texture2D)AssetDatabase.LoadAssetAtPath(path, typeof(Texture2D));
+    }
+}
+
+[MenuItem("Window/Toggle Creator")]
+public static void ShowWindow()
+{
+    var window = GetWindow<ToggleCreatorWindow>();
+    window.Show();
+}
